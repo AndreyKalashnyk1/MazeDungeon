@@ -1,0 +1,13 @@
+{
+    "name": "Save2",
+    "coins": 25,
+    "inventory": {
+        "potion": 0,
+        "artifact": 0,
+        "armor": 1,
+        "armor_hits": 0,
+        "pig": 0,
+        "shield": 0
+    },
+    "max_level": 3
+}

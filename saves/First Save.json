@@ -1,0 +1,13 @@
+{
+    "name": "First Save",
+    "coins": 40,
+    "inventory": {
+        "potion": 0,
+        "artifact": 0,
+        "armor": 1,
+        "pig": 1,
+        "armor_hits": 0,
+        "shield": 1
+    },
+    "max_level": 3
+}
