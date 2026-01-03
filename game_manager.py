@@ -684,7 +684,14 @@ class GameManager:
             f"Weapon (E): {'Yes' if self.player.has_artifact_weapon else 'No'}"
         )
         potions_text = f"Potions (F): {self.player.potions}"
-        pig_text = f"Pig fetches (G): {self.pig_coin_summons_remaining}/3"
+        pig_owned = False
+        if self.active_save:
+            pig_owned = self.active_save.get("inventory", {}).get("pig", 0) > 0
+        pig_text = (
+            f"Pig fetches (G): {self.pig_coin_summons_remaining}/3"
+            if pig_owned
+            else ""
+        )
         restart_text = "R - restart | ESC - menu"
 
         texts = [
@@ -785,8 +792,6 @@ class GameManager:
 
                 if self.active_save is not None:
                     self.active_save["coins"] += self.player.collected_coins
-                    from save_manager import SaveManager
-
                     SaveManager().save(self.active_save)
 
                 self.sound_manager.play_sound("victory")

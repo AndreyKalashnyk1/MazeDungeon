@@ -312,7 +312,7 @@ class ShopScreen:
             f"Coins: {save_data.get('coins', 0)}", True, COLORS["menu_text"]
         )
 
-        self.screen.blit(coins, (WINDOW_WIDTH // 2 - coins.get_width() // 2, 90))
+        self.screen.blit(coins, (WINDOW_WIDTH // 2 - coins.get_width() // 2, 105))
 
         start_y = 160
 
@@ -645,7 +645,7 @@ class GameOverScreen:
                 f"HP: {stats.get('health', 100)}/100",
                 f"Artifacts: {stats.get('artifacts', 0)}",
                 f"Keys: {stats.get('keys', 0)}",
-                f"Coins (level): +{stats['coins']}",
+                f"Coins: +{stats['coins']}",
                 f"Total coins: {stats['total_coins']}",
             ]
 
@@ -700,7 +700,7 @@ class GameOverScreen:
                 f"HP: 0/100",
                 f"Artifacts: {stats.get('artifacts', 0)}",
                 f"Keys: {stats.get('keys', 0)}",
-                f"Coins (level): {stats.get('coins', 0)}",
+                f"Coins: {stats.get('coins', 0)}",
             ]
 
             y_offset = 250
