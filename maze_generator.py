@@ -1,7 +1,7 @@
 import random
-from typing import List, Tuple, Dict, Set, Optional
-from collections import deque
+from typing import Dict, List, Optional, Set, Tuple
 from constants import CellType, MAZE_WIDTH, MAZE_HEIGHT
+from pathfinding import bfs_farthest, bfs_reachable, bfs_shortest_path
 
 Coord = Tuple[int, int]
 
@@ -74,218 +74,169 @@ class MazeGenerator:
                     self.maze[y][x] = CellType.WALL
 
     def _get_reachable_cells(
-        self, maze: List[List[CellType]], start_pos: Coord, blocked: Set[Coord] = set()
-    ) -> Set[Coord]:
-
-        visited: Set[Coord] = set()
-        q = deque([start_pos])
-        visited.add(start_pos)
-
-        while q:
-            x, y = q.popleft()
-
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = x + dx, y + dy
-
-                if not (0 <= nx < self.width and 0 <= ny < self.height):
-                    continue
-
-                if (nx, ny) in visited or (nx, ny) in blocked:
-                    continue
-
-                if maze[ny][nx] == CellType.WALL:
-                    continue
-
-                visited.add((nx, ny))
-                q.append((nx, ny))
-
-        return visited
-
-    def _bfs_shortest_path(
         self,
         maze: List[List[CellType]],
-        start: Coord,
-        goal: Coord,
-        blocked: Set[Coord] = set(),
-    ) -> List[Coord]:
+        start_pos: Coord,
+        blocked: Optional[Set[Coord]] = None,
+    ) -> Set[Coord]:
+        if blocked is None:
+            blocked = set()
 
-        q = deque([start])
-        prev: Dict[Coord, Optional[Coord]] = {start: None}
+        def is_blocked(pos: Coord) -> bool:
+            x, y = pos
+            return pos in blocked or maze[y][x] == CellType.WALL
 
-        while q:
-            cur = q.popleft()
+        return bfs_reachable(start_pos, self.width, self.height, is_blocked)
 
-            if cur == goal:
-                break
-
-            x, y = cur
-
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = x + dx, y + dy
-                nxt = (nx, ny)
-
-                if not (0 <= nx < self.width and 0 <= ny < self.height):
-                    continue
-
-                if nxt in prev or nxt in blocked:
-                    continue
-
-                if maze[ny][nx] == CellType.WALL:
-                    continue
-
-                prev[nxt] = cur
-                
-                q.append(nxt)
-
-        if goal not in prev:
-            return []
-
-        path = []
-        cur: Optional[Coord] = goal
-
-        while cur is not None:
-            path.append(cur)
-            cur = prev[cur]
-
-        path.reverse()
-
-        return path
-
-    def _farthest_cell(self, maze: List[List[CellType]], start: Coord) -> Coord:
-        q = deque([start])
-        dist = {start: 0}
-        far = start
-
-        while q:
-            cur = q.popleft()
-
-            if dist[cur] > dist[far]:
-                far = cur
-
-            x, y = cur
-
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = x + dx, y + dy
-
-                nxt = (nx, ny)
-
-                if not (0 <= nx < self.width and 0 <= ny < self.height):
-                    continue
-
-                if nxt in dist:
-                    continue
-
-                if maze[ny][nx] == CellType.WALL:
-                    continue
-
-                dist[nxt] = dist[cur] + 1
-
-                q.append(nxt)
-
-        return far
-
-    def place_special_elements(self) -> Tuple[Coord, Dict]:
-
-        if self.maze is None:
-            self.generate()
-
-        maze = self.maze
-
-        assert maze is not None
-
-        path_cells = [
+    def _path_cells(self, maze: List[List[CellType]]) -> List[Coord]:
+        return [
             (x, y)
             for y in range(self.height)
             for x in range(self.width)
             if maze[y][x] == CellType.PATH
         ]
 
-        if len(path_cells) < 30:
+    def _make_is_blocked(self, maze: List[List[CellType]]):
+        def is_blocked(pos: Coord) -> bool:
+            x, y = pos
+            return maze[y][x] == CellType.WALL
 
-            raise ValueError("Лабіринт занадто малий для розміщення елементів")
+        return is_blocked
 
+    def _pick_main_path(
+        self, path_cells: List[Coord], is_blocked
+    ) -> Tuple[Coord, Coord, List[Coord]]:
         start_pos = random.choice(path_cells)
-        exit_pos = self._farthest_cell(maze, start_pos)
-        main_path = self._bfs_shortest_path(maze, start_pos, exit_pos)
+        exit_pos = bfs_farthest(start_pos, self.width, self.height, is_blocked)
+        main_path = bfs_shortest_path(
+            start_pos,
+            exit_pos,
+            self.width,
+            self.height,
+            is_blocked,
+            include_start=True,
+        )
 
-        if len(main_path) < 8:
+        if len(main_path) >= 8:
+            return start_pos, exit_pos, main_path
 
-            for _ in range(10):
-                start_pos = random.choice(path_cells)
-                exit_pos = self._farthest_cell(maze, start_pos)
-                main_path = self._bfs_shortest_path(maze, start_pos, exit_pos)
+        for _ in range(10):
+            start_pos = random.choice(path_cells)
+            exit_pos = bfs_farthest(start_pos, self.width, self.height, is_blocked)
+            main_path = bfs_shortest_path(
+                start_pos,
+                exit_pos,
+                self.width,
+                self.height,
+                is_blocked,
+                include_start=True,
+            )
+            if len(main_path) >= 8:
+                break
 
-                if len(main_path) >= 8:
+        return start_pos, exit_pos, main_path
 
-                    break
-
-        if len(main_path) < 8:
-            raise ValueError("Не вдалося побудувати достатньо довгий шлях Start->Exit")
-
+    def _place_door_and_key(
+        self, maze: List[List[CellType]], start_pos: Coord, main_path: List[Coord]
+    ) -> Tuple[Coord, Coord, Set[Coord]]:
         door_index = random.randint(
             max(3, len(main_path) // 3),
             min(len(main_path) - 4, 2 * len(main_path) // 3),
         )
-
         door_pos = main_path[door_index]
-
         dx, dy = door_pos
-
         maze[dy][dx] = CellType.DOOR
 
         pre_door_reachable = self._get_reachable_cells(
             maze, start_pos, blocked={door_pos}
         )
-
         key_candidates = [c for c in pre_door_reachable if c != start_pos]
-
+        raise_no_key = "Не знайшлось місце для ключа до дверей"
         if not key_candidates:
-            raise ValueError("Не знайшлось місце для ключа до дверей")
-
+            raise ValueError(raise_no_key)
         key_pos = random.choice(key_candidates)
-        all_reachable = self._get_reachable_cells(maze, start_pos)
-        
+        return door_pos, key_pos, pre_door_reachable
+
+    def _pick_artifact_pos(
+        self,
+        all_reachable: Set[Coord],
+        pre_door_reachable: Set[Coord],
+        start_pos: Coord,
+        key_pos: Coord,
+        exit_pos: Coord,
+    ) -> Optional[Coord]:
         post_candidates = [
             c for c in all_reachable if c not in pre_door_reachable and c != exit_pos
         ]
-
         pre_candidates = [
             c for c in pre_door_reachable if c not in (start_pos, key_pos)
         ]
 
         if post_candidates and random.random() < 0.6:
-            artifact_pos = random.choice(post_candidates)
+            return random.choice(post_candidates)
+        if pre_candidates:
+            return random.choice(pre_candidates)
+        return None
 
-        elif pre_candidates:
-            artifact_pos = random.choice(pre_candidates)
-
-        else:
-            artifact_pos = None
-
-        forbidden = {start_pos, exit_pos, door_pos, key_pos}
-
-        if artifact_pos:
-            forbidden.add(artifact_pos)
-
+    def _place_traps_and_coins(
+        self,
+        maze: List[List[CellType]],
+        all_reachable: Set[Coord],
+        forbidden: Set[Coord],
+        exit_pos: Coord,
+    ) -> Tuple[List[Coord], List[Coord]]:
         trap_candidates = [c for c in all_reachable if c not in forbidden]
-
         random.shuffle(trap_candidates)
-
         trap_cells = trap_candidates[:2]
+
         ex, ey = exit_pos
         maze[ey][ex] = CellType.EXIT
-
         for tx, ty in trap_cells:
             maze[ty][tx] = CellType.TRAP
 
         coin_count = random.randint(7, 9)
-
         coin_candidates = [
             c for c in all_reachable if c not in forbidden and c not in trap_cells
         ]
-
         random.shuffle(coin_candidates)
         coins = coin_candidates[:coin_count]
+        return trap_cells, coins
+
+    def place_special_elements(self) -> Tuple[Coord, Dict]:
+        if self.maze is None:
+            self.generate()
+
+        maze = self.maze
+        assert maze is not None
+
+        path_cells = self._path_cells(maze)
+        raise_small = "Лабіринт занадто малий для розміщення елементів"
+        if len(path_cells) < 30:
+            raise ValueError(raise_small)
+
+        is_blocked = self._make_is_blocked(maze)
+        start_pos, exit_pos, main_path = self._pick_main_path(
+            path_cells, is_blocked
+        )
+        raise_short = "Не вдалося побудувати достатньо довгий шлях Start->Exit"
+        if len(main_path) < 8:
+            raise ValueError(raise_short)
+
+        door_pos, key_pos, pre_door_reachable = self._place_door_and_key(
+            maze, start_pos, main_path
+        )
+        all_reachable = self._get_reachable_cells(maze, start_pos)
+        artifact_pos = self._pick_artifact_pos(
+            all_reachable, pre_door_reachable, start_pos, key_pos, exit_pos
+        )
+
+        forbidden = {start_pos, exit_pos, door_pos, key_pos}
+        if artifact_pos:
+            forbidden.add(artifact_pos)
+
+        trap_cells, coins = self._place_traps_and_coins(
+            maze, all_reachable, forbidden, exit_pos
+        )
 
         elements = {
             "doors": [{"pos": door_pos, "key_id": 0, "is_locked": True}],

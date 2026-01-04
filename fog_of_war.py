@@ -77,32 +77,22 @@ class FogOfWar:
                 rect = pygame.Rect(x * grid_size, y * grid_size, grid_size, grid_size)
                 cell_type = maze[y][x]
 
-                if self.is_visible((x, y)) or self.is_explored((x, y)):
-                    if self.is_visible((x, y)):
-                        if sprites:
-                            if cell_type == CellType.WALL and sprites.get("wall"):
-                                screen.blit(sprites["wall"], rect)
-
-                            elif cell_type == CellType.PATH and sprites.get("path"):
-                                screen.blit(sprites["path"], rect)
-
-                            elif cell_type == CellType.EXIT and sprites.get("exit"):
-                                screen.blit(sprites["exit"], rect)
-
-                            elif cell_type == CellType.TRAP and sprites.get("trap"):
-                                screen.blit(sprites["trap"], rect)
-                                
-                            else:
-                                color = self.get_cell_color(maze, (x, y))
-                                pygame.draw.rect(screen, color, rect)
-
-                        else:
-                            color = self.get_cell_color(maze, (x, y))
-                            pygame.draw.rect(screen, color, rect)
-
-                    else:
-                        color = self.get_cell_color(maze, (x, y))
-                        pygame.draw.rect(screen, color, rect)
-
-                else:
+                if not (self.is_visible((x, y)) or self.is_explored((x, y))):
                     pygame.draw.rect(screen, COLORS["unknown"], rect)
+                    continue
+
+                if self.is_visible((x, y)) and sprites:
+                    sprite_map = {
+                        CellType.WALL: "wall",
+                        CellType.PATH: "path",
+                        CellType.EXIT: "exit",
+                        CellType.TRAP: "trap",
+                    }
+                    sprite_key = sprite_map.get(cell_type)
+                    sprite = sprites.get(sprite_key) if sprite_key else None
+                    if sprite:
+                        screen.blit(sprite, rect)
+                        continue
+
+                color = self.get_cell_color(maze, (x, y))
+                pygame.draw.rect(screen, color, rect)

@@ -2,11 +2,10 @@ import pygame
 import math
 import random
 import time
-from collections import deque
-
-from typing import List, Tuple, Set
+from typing import List, Set, Tuple
 
 from base_entity import Entity
+from pathfinding import bfs_shortest_path
 
 from constants import (
     COLORS,
@@ -195,19 +194,14 @@ class Player(Entity):
         self.health = min(self.health + amount, PLAYER_MAX_HP)
 
     def update(self, *args, **kwargs):
-
         pass
 
     def render(self, screen: pygame.Surface):
-
         if self.sprite:
-
             rect = self.get_rect()
-
             screen.blit(self.sprite, rect)
 
         else:
-
             pygame.draw.rect(screen, self.color, self.get_rect())
 
 
@@ -281,31 +275,41 @@ class Enemy(Entity):
     def _find_path_to_target(
         self, target: Tuple[int, int], maze: List[List], elements: dict
     ) -> List[Tuple[int, int]]:
+        return self._find_shortest_to_any([target], maze, elements)
+
+    def _build_is_blocked(self, maze: List[List], elements: dict):
         blocked = self._locked_doors_as_blocked(elements)
-        visited = set()
-        queue = deque([(self.x, self.y, [])])
-        visited.add((self.x, self.y))
 
-        while queue:
-            x, y, path = queue.popleft()
-            if (x, y) == target:
-                return path
+        def is_blocked(pos: Tuple[int, int]) -> bool:
+            x, y = pos
+            return pos in blocked or maze[y][x] == CellType.WALL
 
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = x + dx, y + dy
-                if not (0 <= nx < len(maze[0]) and 0 <= ny < len(maze)):
-                    continue
-                if (nx, ny) in visited:
-                    continue
-                if (nx, ny) in blocked:
-                    continue
-                if maze[ny][nx] == CellType.WALL:
-                    continue
+        return is_blocked
 
-                visited.add((nx, ny))
-                queue.append((nx, ny, path + [(nx, ny)]))
-
-        return []
+    def _find_shortest_to_any(
+        self,
+        targets: List[Tuple[int, int]],
+        maze: List[List],
+        elements: dict,
+        is_blocked=None,
+        width: int = None,
+        height: int = None,
+    ) -> List[Tuple[int, int]]:
+        if not targets:
+            return []
+        if is_blocked is None:
+            is_blocked = self._build_is_blocked(maze, elements)
+        if width is None or height is None:
+            width = len(maze[0])
+            height = len(maze)
+        best_path: List[Tuple[int, int]] = []
+        for target in targets:
+            path = bfs_shortest_path(
+                (self.x, self.y), target, width, height, is_blocked
+            )
+            if path and (not best_path or len(path) < len(best_path)):
+                best_path = path
+        return best_path
 
     def _step_toward(
         self, target: Tuple[int, int], maze: List[List], elements: dict
@@ -349,48 +353,20 @@ class Enemy(Entity):
     def find_path_to_player(
         self, player: "Player", maze: List[List], elements: dict
     ) -> List[Tuple[int, int]]:
-
-        blocked = self._locked_doors_as_blocked(elements)
-
-        visited = set()
-
-        queue = deque([(self.x, self.y, [])])
-
-        visited.add((self.x, self.y))
-
-        while queue:
-
-            x, y, path = queue.popleft()
-
-            if abs(x - player.x) + abs(y - player.y) == 1:
-
-                return path
-
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-
-                nx, ny = x + dx, y + dy
-
-                if not (0 <= nx < len(maze[0]) and 0 <= ny < len(maze)):
-
-                    continue
-
-                if (nx, ny) in visited:
-
-                    continue
-
-                if (nx, ny) in blocked:
-
-                    continue
-
-                if maze[ny][nx] == CellType.WALL:
-
-                    continue
-
-                visited.add((nx, ny))
-
-                queue.append((nx, ny, path + [(nx, ny)]))
-
-        return []
+        is_blocked = self._build_is_blocked(maze, elements)
+        width = len(maze[0])
+        height = len(maze)
+        targets = []
+        for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            nx, ny = player.x + dx, player.y + dy
+            if not (0 <= nx < width and 0 <= ny < height):
+                continue
+            if is_blocked((nx, ny)):
+                continue
+            targets.append((nx, ny))
+        return self._find_shortest_to_any(
+            targets, maze, elements, is_blocked=is_blocked, width=width, height=height
+        )
 
     def update(self, player, maze, elements, sneaking: bool = False):
         if self.health <= 0:
@@ -612,28 +588,23 @@ class Pig(Entity):
 
     def _next_step(self, maze: List[List], target: Tuple[int, int]) -> Tuple[int, int]:
         blocked = {CellType.WALL, CellType.DOOR}
-        w = len(maze[0])
-        h = len(maze)
-        queue = deque([(self.x, self.y, [])])
-        visited = {(self.x, self.y)}
+        width = len(maze[0])
+        height = len(maze)
 
-        while queue:
-            x, y, path = queue.popleft()
-            if (x, y) == target:
-                if path:
-                    return path[0]
-                return (x, y)
-            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
-                nx, ny = x + dx, y + dy
-                if not (0 <= nx < w and 0 <= ny < h):
-                    continue
-                if (nx, ny) in visited:
-                    continue
-                if maze[ny][nx] in blocked and (nx, ny) != target:
-                    continue
-                visited.add((nx, ny))
-                queue.append((nx, ny, path + [(nx, ny)]))
+        def is_blocked(pos: Tuple[int, int]) -> bool:
+            x, y = pos
+            return maze[y][x] in blocked
 
+        path = bfs_shortest_path(
+            (self.x, self.y),
+            target,
+            width,
+            height,
+            is_blocked,
+            allow_goal_blocked=True,
+        )
+        if path:
+            return path[0]
         return (self.x, self.y)
 
     def update(self, player: Player, maze: List[List], elements: dict):

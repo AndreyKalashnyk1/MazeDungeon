@@ -36,7 +36,7 @@ from ui_theme import get_font
 
 
 class GameManager:
-
+    # Set up pygame, game state, assets, and UI screens.
     def __init__(self):
 
         pygame.init()
@@ -91,6 +91,7 @@ class GameManager:
         except Exception:
             self.ui_shield_icon = None
 
+    # Load and scale sprite assets used in the game.
     def _load_sprites(self) -> Dict:
 
         sprites = {}
@@ -117,6 +118,7 @@ class GameManager:
 
         return sprites
 
+    # Run the main menu loop and return the selected action.
     def show_main_menu(self) -> bool:
 
         self.sound_manager.play_music("menu_music", loops=-1)
@@ -148,6 +150,7 @@ class GameManager:
             self.menu.render()
             self.clock.tick(FPS)
 
+    # Apply purchased shop items to the current player/save.
     def _apply_shop_items(self):
         if not self.active_save or self.player is None:
             return
@@ -176,6 +179,7 @@ class GameManager:
 
         SaveManager().save(self.active_save)
 
+    # Save current armor durability back into the save file.
     def _persist_armor_state(self):
         if not self.active_save or not self.player:
             return
@@ -184,6 +188,7 @@ class GameManager:
         inv["armor_hits"] = max(0, int(self.player.armor_hits))
         SaveManager().save(self.active_save)
 
+    # Spawn the pig next to the player if possible.
     def _spawn_pig(self):
         if not self.player or not self.maze:
             return
@@ -198,6 +203,7 @@ class GameManager:
                     self.pig = Pig((nx, ny))
                     return
 
+    # Command the pig to fetch a visible coin if available.
     def _pig_command_fetch(self):
         if not self.pig or self.pig_coin_summons_remaining <= 0:
             self._show_toast("No pig fetches left")
@@ -215,10 +221,12 @@ class GameManager:
         else:
             self._show_toast("Pig is busy")
 
+    # Show a short on-screen status message.
     def _show_toast(self, text: str, duration_ms: int = 2000):
         self.toast_text = text
         self.toast_until = pygame.time.get_ticks() + duration_ms
 
+    # Gather positions where new entities should not spawn.
     def _collect_forbidden_positions(
         self, player_pos: Tuple[int, int], enemy_positions: List[Tuple[int, int]]
     ):
@@ -242,6 +250,7 @@ class GameManager:
                 forbidden.add(tuple(door_info["pos"]))
         return forbidden
 
+    # Spawn a number of witches in valid path tiles.
     def _spawn_witches(
         self,
         count: int,
@@ -273,6 +282,7 @@ class GameManager:
             self.witches.append(Witch(pos))
             forbidden.add(pos)
 
+    # Update witch fireballs and thorns based on cooldowns.
     def _update_witch_attacks(self, now_ms: int):
         if not self.witches:
             return
@@ -309,6 +319,7 @@ class GameManager:
                 for pos in positions:
                     self.thorns.append({"pos": pos, "expires": expire})
 
+    # Advance fireballs and apply damage on hit.
     def _update_fireballs(self, now_ms: int):
         if not self.fireballs:
             return
@@ -333,6 +344,7 @@ class GameManager:
             active.append(fb)
         self.fireballs = active
 
+    # Expire thorns and apply damage on contact.
     def _update_thorns(self, now_ms: int):
         if not self.thorns:
             return
@@ -345,6 +357,7 @@ class GameManager:
                     break
         self.last_player_pos = current_pos
 
+    # Generate a level, spawn entities, and reset state.
     def _init_level(self):
 
         max_attempts = 30
@@ -424,6 +437,7 @@ class GameManager:
         self.fog_of_war = FogOfWar(MAZE_WIDTH, MAZE_HEIGHT, GRID_SIZE)
         self.fog_of_war.update(self.player.get_position())
 
+    # Process player input and movement.
     def handle_input(self):
 
         for event in pygame.event.get():
@@ -504,6 +518,7 @@ class GameManager:
                         self.prev_player_pos = old_pos
                     self.last_movement_time[key] = current_time
 
+    # Update game state for one tick and return status.
     def update(self):
         if not self.player.is_alive:
             return "defeat"
@@ -553,6 +568,7 @@ class GameManager:
             elif pig_status == "no_path":
                 self._show_toast("Coin not found")
 
+    # Apply enemy contact damage or block effects.
     def _handle_enemy_contact(self, enemy_id: int, enemy):
 
         current_time = time.time()
@@ -587,6 +603,7 @@ class GameManager:
 
         return "continue"
 
+    # Render the game world and HUD.
     def render(self):
 
         self.screen.fill(COLORS["unknown"])
@@ -672,6 +689,7 @@ class GameManager:
 
         pygame.display.flip()
 
+    # Render HUD elements like HP, coins, and status.
     def _render_hud(self):
 
         font = get_font("hud")
@@ -751,6 +769,7 @@ class GameManager:
             rect = toast.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 20))
             self.screen.blit(toast, rect)
 
+    # Run a single level loop until victory/defeat/menu.
     def run_game_loop(self):
 
         self._init_level()
@@ -825,6 +844,7 @@ class GameManager:
 
         return "quit"
 
+    # Main game loop handling saves, menus, and levels.
     def run(self):
 
         while self.running:

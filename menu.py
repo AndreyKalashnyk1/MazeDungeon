@@ -846,7 +846,7 @@ class SaveSelectScreen:
                 y += 40
 
             hint = self.font_hint.render(
-                "↑↓ or W/S — choise | Enter — confirm | Esc — exit",
+                "Arrows or W/S — choise | Enter — confirm | Esc — exit",
                 True,
                 COLORS["hint"],
             )
